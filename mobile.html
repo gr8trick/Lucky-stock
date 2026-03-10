@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>StockPro Cloud V15</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
+        .no-scr::-webkit-scrollbar { display: none; }
+        .pill-active { background-color: #4f46e5; color: #fff; border-color: #4f46e5; }
+        .tag-active { background-color: #10b981; color: #fff; border-color: #10b981; }
+        .btn-active:active { transform: scale(0.97); transition: transform 0.1s; }
+        .glass-nav { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid #e2e8f0; }
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    </style>
+</head>
+<body class="pb-24 select-none">
+
+    <nav class="glass-nav sticky top-0 z-50 px-4 py-3 shadow-sm">
+        <div class="max-w-md mx-auto flex justify-between items-center mb-3">
+            <h1 class="font-bold text-indigo-600 text-lg tracking-tight flex items-center gap-1.5">
+                <i class="fas fa-layer-group text-sm"></i> StockPro
+            </h1>
+            <div class="flex items-center gap-2">
+                <span id="topSyncStatus" class="text-gray-400 text-[10px] flex items-center gap-1"><i class="fas fa-cloud"></i> Offline</span>
+                <button onclick="toggleHist()" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-history text-sm"></i>
+                </button>
+                <button onclick="toggleSet()" class="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors">
+                    <i class="fas fa-cog text-sm"></i>
+                </button>
+            </div>
+        </div>
+        <div class="max-w-md mx-auto">
+            <div class="relative mb-3">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                <input type="text" id="search" oninput="renderStock()" placeholder="Search by name or brand..." class="w-full bg-gray-100/80 border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+            </div>
+            <div id="tabs" class="flex gap-2 overflow-x-auto no-scr pb-1"></div>
+            <div id="brandTabs" class="flex gap-2 overflow-x-auto no-scr pb-1 mt-2 hidden"></div>
+        </div>
+    </nav>
+
+    <main id="app" class="max-w-md mx-auto p-4 space-y-2.5 overflow-x-hidden"></main>
+
+    <button onclick="openM('pM')" class="fixed bottom-6 right-5 bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg shadow-indigo-200 flex items-center justify-center text-xl btn-active z-40">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <div id="hM" class="fixed inset-0 bg-slate-900/50 hidden z-[60] flex justify-end">
+        <div class="bg-white w-72 sm:w-80 h-full shadow-2xl flex flex-col overflow-x-hidden">
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h2 class="text-base font-bold text-gray-800"><i class="fas fa-history mr-2 text-indigo-500"></i>Activity History</h2>
+                <button onclick="toggleHist()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="flex p-3 gap-2 border-b border-gray-100">
+                <button onclick="undo()" class="flex-1 bg-white border border-gray-200 py-1.5 rounded-lg text-sm font-bold text-gray-700 shadow-sm active:bg-gray-100 btn-active"><i class="fas fa-undo mr-1 text-gray-400"></i> Undo</button>
+                <button onclick="redo()" class="flex-1 bg-white border border-gray-200 py-1.5 rounded-lg text-sm font-bold text-gray-700 shadow-sm active:bg-gray-100 btn-active"><i class="fas fa-redo mr-1 text-gray-400"></i> Redo</button>
+            </div>
+            <div id="histList" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50"></div>
+        </div>
+    </div>
+
+    <div id="pM" class="fixed inset-0 bg-slate-900/50 hidden z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-base font-semibold text-gray-800">Add / Edit Product</h2>
+                <button onclick="closeM('pM')" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="pTagsZone" class="hidden mb-4">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Select Tags</label>
+                <div id="p_tags_container" class="flex flex-wrap gap-1.5"></div>
+            </div>
+            <div id="dynamicInputs" class="space-y-3 mb-5"></div>
+            
+            <div id="multiShopSection" class="mb-5 p-3 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase mb-2">Shop Distribution</label>
+                <div id="shopAddList" class="space-y-2"></div>
+            </div>
+
+            <button onclick="addP()" id="saveBtn" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm btn-active shadow-md shadow-indigo-200">Save Product</button>
+        </div>
+    </div>
+
+    <div id="actM" class="fixed inset-0 bg-slate-900/50 hidden z-[60] flex items-end justify-center">
+        <div class="bg-white w-full max-w-md rounded-t-3xl p-6 max-h-[85vh] overflow-y-auto">
+            <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+            <div class="mb-6 text-center">
+                <h2 id="actT" class="text-2xl font-black text-gray-900 mb-2"></h2>
+                <div id="actDetails" class="text-xs flex justify-center flex-wrap gap-1.5 items-center"></div>
+            </div>
+            
+            <div id="directStockEditor" class="mb-6 space-y-3">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Update Stock Levels</label>
+                <div id="shopEditList" class="space-y-2"></div>
+            </div>
+
+            <div id="sellZone" class="hidden mb-5">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Sell Item</label>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="flex-1 flex items-center justify-between border border-gray-200 rounded-xl p-1 bg-gray-50">
+                        <button onclick="stepSell(-1)" class="w-12 h-10 flex items-center justify-center text-gray-500 btn-active rounded-lg"><i class="fas fa-minus"></i></button>
+                        <input type="number" id="sellQty" value="1" class="w-16 text-center font-bold text-indigo-600 text-lg outline-none bg-transparent">
+                        <button onclick="stepSell(1)" class="w-12 h-10 flex items-center justify-center text-gray-500 btn-active rounded-lg"><i class="fas fa-plus"></i></button>
+                    </div>
+                </div>
+                <button onclick="confSell()" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm btn-active">Confirm Sale</button>
+            </div>
+
+            <div id="tZone" class="hidden mb-5">
+                <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Transfer To</label>
+                <div id="pillContainer" class="flex flex-wrap gap-2 mb-4"></div>
+                <div id="qtyInputs" class="space-y-2 mb-4"></div>
+                <button onclick="confT()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm btn-active">Complete Transfer</button>
+            </div>
+
+            <div id="btns" class="grid grid-cols-2 gap-3 mb-6">
+                <button onclick="openSell()" class="bg-emerald-50 text-emerald-700 border border-emerald-200 py-3 rounded-xl font-bold text-sm btn-active"><i class="fas fa-cart-arrow-down mr-1"></i> Sell</button>
+                <button onclick="showT()" class="bg-indigo-50 text-indigo-700 border border-indigo-200 py-3 rounded-xl font-bold text-sm btn-active"><i class="fas fa-exchange-alt mr-1"></i> Transfer</button>
+            </div>
+            
+            <button onclick="delP()" class="w-full py-2.5 text-red-500 hover:bg-red-50 rounded-xl font-semibold text-sm mb-2">Delete Product</button>
+            <button onclick="closeM('actM')" class="w-full py-2.5 text-gray-500 bg-gray-100 rounded-xl font-semibold text-sm">Close</button>
+        </div>
+    </div>
+
+    <div id="sM" class="fixed inset-0 bg-slate-900/50 hidden z-[60] flex justify-end">
+        <div class="bg-white w-72 sm:w-80 h-full shadow-2xl flex flex-col overflow-x-hidden">
+            <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                <h2 class="text-base font-bold text-gray-800">Settings</h2>
+                <button onclick="toggleSet()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto overflow-x-hidden p-5 space-y-6">
+                
+                <div class="w-full p-4 bg-emerald-50 border border-emerald-100 rounded-2xl shadow-sm">
+                    <label class="block text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-2"><i class="fas fa-database mr-1"></i> Data Management</label>
+                    <div class="flex gap-2">
+                        <button onclick="exportData()" class="flex-1 bg-white border border-emerald-200 text-emerald-700 py-2 rounded-xl text-xs font-bold shadow-sm btn-active flex items-center justify-center gap-1">
+                            <i class="fas fa-file-export"></i> Export
+                        </button>
+                        <button onclick="$('importFile').click()" class="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-xs font-bold shadow-sm btn-active flex items-center justify-center gap-1">
+                            <i class="fas fa-file-import"></i> Import
+                        </button>
+                        <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(event)">
+                    </div>
+                    <p class="text-[9px] text-emerald-600 mt-2 font-medium leading-tight">Export your stock to a JSON file, or import a JSON file to update inventory instantly.</p>
+                </div>
+
+                <div class="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                    <label class="flex justify-between items-center text-[10px] font-bold text-blue-700 uppercase tracking-wider mb-2">Cloud Sync <span id="syncStatus" class="text-red-500 flex items-center gap-1"><i class="fas fa-circle text-[6px]"></i> Disconnected</span></label>
+                    <textarea id="fbConfig" rows="3" placeholder="Paste Firebase Config" class="w-full border border-blue-200 rounded-lg px-2 py-1.5 text-[9px] font-mono outline-none bg-white mb-2"></textarea>
+                    <button onclick="connectFB()" class="w-full bg-blue-600 text-white py-2 rounded-lg text-xs font-semibold btn-active shadow-sm flex justify-center items-center gap-1"><i class="fas fa-cloud-upload-alt"></i> Connect</button>
+                </div>
+                
+                <div class="w-full">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Shops</label>
+                    <div class="flex gap-2 mb-2 w-full"><input id="sN" placeholder="New Shop" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"><button onclick="addS()" class="bg-gray-800 text-white px-3 rounded-lg text-sm btn-active"><i class="fas fa-plus"></i></button></div>
+                    <div id="sL" class="flex overflow-x-auto gap-2 no-scr pb-1 w-full"></div>
+                </div>
+                <div class="w-full">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Custom Tags</label>
+                    <div class="flex gap-2 mb-2 w-full"><input id="tN" placeholder="e.g. 5G" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"><button onclick="addT()" class="bg-emerald-600 text-white px-3 rounded-lg text-sm btn-active"><i class="fas fa-plus"></i></button></div>
+                    <div id="tL" class="flex flex-wrap gap-1.5 w-full"></div>
+                </div>
+                <div class="w-full">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Custom Inputs</label>
+                    <div class="flex gap-2 mb-2 w-full"><input id="fN" placeholder="#Model" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"><button onclick="addF()" class="bg-indigo-600 text-white px-3 rounded-lg text-sm btn-active"><i class="fas fa-plus"></i></button></div>
+                    <div id="fL" class="flex flex-wrap gap-1.5 w-full"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let raw = localStorage.getItem('stockpro_v15');
+        let db = raw ? JSON.parse(raw) : { s: [], f: [], t: [] };
+        if(!db.s) db.s = []; if(!db.f) db.f = []; if(!db.t) db.t = [];
+        if(!db.h) db.h = []; if(!db.r) db.r = [];
+        
+        let cur = 'all', selIdx = null, selProdName = null, selBrand = ''; 
+        let tShops = {}, activeTags = [], addDist = {};
+        let fbDoc = null, isPushing = false, fbTimeout = null;
+        let isEditMode = false; // NAYA: Track if user is Editing or Adding
+
+        const $ = i => document.getElementById(i);
+        
+        // ---------- HISTORY / UNDO-REDO SYSTEM ----------
+        function commitAction(desc, actionFn) {
+            if(!db.h) db.h = [];
+            let backupState = JSON.stringify(db.s); 
+            actionFn(); 
+            db.h.push({ time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), desc: desc, s: backupState });
+            if(db.h.length > 20) db.h.shift(); 
+            db.r = []; 
+            save();
+        }
+
+        function undo() {
+            if(!db.h || db.h.length === 0) return alert("Nothing to undo!");
+            if(!db.r) db.r = [];
+            let currentState = JSON.stringify(db.s);
+            let lastAction = db.h.pop();
+            db.r.push({ time: lastAction.time, desc: lastAction.desc, s: currentState });
+            db.s = JSON.parse(lastAction.s);
+            save(); renderHistUI();
+        }
+
+        function redo() {
+            if(!db.r || db.r.length === 0) return alert("Nothing to redo!");
+            if(!db.h) db.h = [];
+            let currentState = JSON.stringify(db.s);
+            let nextAction = db.r.pop();
+            db.h.push({ time: nextAction.time, desc: nextAction.desc, s: currentState });
+            db.s = JSON.parse(nextAction.s);
+            save(); renderHistUI();
+        }
+
+        function toggleHist() { 
+            $('hM').classList.toggle('hidden'); 
+            if(!$('hM').classList.contains('hidden')) renderHistUI();
+        }
+
+        function renderHistUI() {
+            let list = "";
+            if(!db.h || db.h.length === 0) {
+                list = `<div class="text-center p-6 text-gray-400"><i class="fas fa-box-open text-3xl mb-2"></i><br>No recent activity</div>`;
+            } else {
+                let reversedH = [...db.h].reverse();
+                list = reversedH.map(h => `
+                    <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                        <div><p class="font-bold text-gray-800 text-sm">${h.desc}</p><p class="text-[10px] text-gray-400 mt-0.5"><i class="far fa-clock"></i> ${h.time}</p></div>
+                    </div>`).join('');
+            }
+            $('histList').innerHTML = list;
+        }
+
+        // ---------- IMPORT & EXPORT JSON DATA ----------
+        function exportData() {
+            let exportObj = { items: [] };
+            let grouped = {};
+            db.s.forEach(shop => {
+                shop.i.forEach(item => {
+                    if(!grouped[item.n]) {
+                        grouped[item.n] = {
+                            name: item.n,
+                            brand: item.b || "",
+                            price: item.p || "",
+                            shops: {},
+                            tags: item.tg || [],
+                            ex: item.ex || {}
+                        };
+                    }
+                    if(item.q > 0) {
+                        grouped[item.n].shops[shop.n] = item.q;
+                    }
+                });
+            });
+            exportObj.items = Object.values(grouped);
+            
+            let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+            let dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", "StockPro_Backup_" + new Date().toISOString().split('T')[0] + ".json");
+            dl.click();
+        }
+
+        function importData(e) {
+            let file = e.target.files[0];
+            if(!file) return;
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let data = JSON.parse(e.target.result);
+                    if(!data.items || !Array.isArray(data.items)) throw "Invalid format";
+                    
+                    commitAction(`Imported ${data.items.length} items from JSON`, () => {
+                        data.items.forEach(item => {
+                            if(!item.name || !item.shops) return;
+                            
+                            if(item.tags && Array.isArray(item.tags)) {
+                                item.tags.forEach(t => { if(!db.t.includes(t)) db.t.push(t); });
+                            }
+
+                            Object.keys(item.shops).forEach(shopName => {
+                                let qty = parseInt(item.shops[shopName]);
+                                if(isNaN(qty) || qty <= 0) return;
+
+                                let shop = db.s.find(s => s.n === shopName);
+                                if(!shop) {
+                                    shop = { n: shopName, i: [] };
+                                    db.s.push(shop);
+                                }
+
+                                let exItem = shop.i.find(x => x.n === item.name);
+                                if(exItem) {
+                                    exItem.q += qty;
+                                    if(item.price) exItem.p = item.price;
+                                    if(item.brand) exItem.b = item.brand;
+                                    if(item.tags) exItem.tg = item.tags;
+                                    if(item.ex) exItem.ex = item.ex;
+                                } else {
+                                    shop.i.push({
+                                        n: item.name,
+                                        p: item.price || "",
+                                        b: item.brand || "",
+                                        q: qty,
+                                        ex: item.ex || {},
+                                        tg: item.tags || []
+                                    });
+                                }
+                            });
+                        });
+                    });
+                    alert("Data Imported Successfully!");
+                    buildSettings();
+                } catch(err) {
+                    alert("Error: File format must match the Demo JSON structure!");
+                }
+                $('importFile').value = ''; 
+            };
+            reader.readAsText(file);
+        }
+
+        // ---------- SAVE & CLOUD SYNC ----------
+        const save = () => { 
+            localStorage.setItem('stockpro_v15', JSON.stringify(db)); 
+            render(); 
+            if(fbDoc) {
+                clearTimeout(fbTimeout);
+                fbTimeout = setTimeout(() => {
+                    isPushing = true;
+                    $('topSyncStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+                    fbDoc.set(db).then(() => { setTimeout(() => { isPushing = false; $('topSyncStatus').innerHTML = '<i class="fas fa-cloud text-emerald-500"></i> Synced'; }, 1000); });
+                }, 1000);
+            }
+        };
+
+        let savedFbConfig = localStorage.getItem('fb_config');
+        if(savedFbConfig) try { initFB(JSON.parse(savedFbConfig)); } catch(e){}
+        function connectFB() {
+            let input = $('fbConfig').value;
+            try {
+                let str = input.substring(input.indexOf('{'), input.lastIndexOf('}') + 1);
+                let config = (new Function('return ' + str))();
+                localStorage.setItem('fb_config', JSON.stringify(config));
+                initFB(config);
+            } catch(err) { alert("Format galat hai!"); }
+        }
+        function initFB(config) {
+            if (!firebase.apps.length) firebase.initializeApp(config);
+            fbDoc = firebase.firestore().collection('stockpro').doc('main_data');
+            fbDoc.onSnapshot((doc) => {
+                $('syncStatus').innerHTML = 'Connected';
+                $('syncStatus').parentElement.className = 'text-emerald-500 flex items-center gap-1 font-bold';
+                if(doc.exists && !isPushing) { db = doc.data(); render(); }
+            });
+        }
+
+        // ---------- UI & MODALS ----------
+        const openM = i => { 
+            if(i==='pM') { 
+                isEditMode = false; // Reset to Add Mode initially
+                activeTags = []; addDist = {}; 
+                db.s.forEach((_,idx)=> addDist[idx] = 0);
+                buildForm(); 
+                renderAddTags(); 
+                renderShopAddList();
+                
+                // Reset UI elements just in case
+                if($('dupWarning')) $('dupWarning').classList.add('hidden');
+                $('saveBtn').innerText = "Save Product";
+                $('saveBtn').className = "w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm btn-active shadow-md shadow-indigo-200";
+            } 
+            $(i).classList.remove('hidden'); 
+        };
+        const closeM = i => { 
+            $(i).classList.add('hidden'); 
+            if(i==='actM'){ tShops={}; $('tZone').classList.add('hidden'); $('sellZone').classList.add('hidden'); $('btns').classList.remove('hidden'); }
+        };
+        const toggleSet = () => { buildSettings(); $('sM').classList.toggle('hidden'); };
+
+        function addS() { let v=$('sN').value.trim(); if(v){ commitAction(`Added Shop: ${v}`, () => { db.s.push({n:v,i:[]}); }); buildSettings(); $('sN').value='';} }
+        function delS(idx) { if(confirm('Delete?')){ commitAction(`Deleted Shop`, () => { db.s.splice(idx,1); cur='all'; }); buildSettings(); }}
+        function addF() { let v=$('fN').value.trim(); if(v){ db.f.push(v); save(); buildSettings(); $('fN').value='';} }
+        function addT() { let v=$('tN').value.trim(); if(v){ db.t.push(v); save(); buildSettings(); $('tN').value='';} }
+
+        function buildSettings() {
+            $('sL').innerHTML = db.s.map((s,i) => `<div class="flex-shrink-0 bg-gray-50 border p-1.5 rounded-lg flex items-center gap-2 text-[11px] font-semibold"><span>${s.n}</span><i onclick="delS(${i})" class="fas fa-times text-red-400 cursor-pointer"></i></div>`).join('');
+            $('fL').innerHTML = db.f.map((f,i) => `<span class="px-2 py-1 rounded border text-[10px] font-bold">${f} <i onclick="db.f.splice(${i},1);save();buildSettings()" class="fas fa-times cursor-pointer"></i></span>`).join('');
+            $('tL').innerHTML = db.t.map((t,i) => `<span class="px-2 py-1 rounded border text-[10px] font-bold">${t} <i onclick="db.t.splice(${i},1);save();buildSettings()" class="fas fa-times cursor-pointer"></i></span>`).join('');
+        }
+
+        function renderShopAddList() {
+            $('shopAddList').innerHTML = db.s.map((s,i) => `
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-gray-600">${s.n}</span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="addDist[${i}]=Math.max(0,addDist[${i}]-1);renderShopAddList()" class="w-8 h-8 border rounded-lg text-lg font-bold bg-white shadow-sm">-</button>
+                        <input type="number" value="${addDist[i]}" oninput="addDist[${i}]=parseInt(this.value)||0" class="w-10 text-center text-sm font-black bg-transparent text-indigo-600 outline-none">
+                        <button onclick="addDist[${i}]++;renderShopAddList()" class="w-8 h-8 border rounded-lg text-lg font-bold bg-white shadow-sm">+</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        // NAYA: Build form with Realtime Handlers
+        function buildForm() {
+            if(db.t.length > 0) $('pTagsZone').classList.remove('hidden'); else $('pTagsZone').classList.add('hidden');
+            
+            let brands = new Set(); 
+            let prodNames = new Set();
+            
+            db.s.forEach(s => s.i.forEach(item => { 
+                if(item.b) brands.add(item.b); 
+                if(item.n) prodNames.add(item.n);
+            }));
+            
+            window.allProductNames = [...prodNames];
+            
+            let brandDatalist = `<datalist id="brandSuggestions">${[...brands].map(b => `<option value="${b}">`).join('')}</datalist>`;
+            
+            let html = brandDatalist + `
+                <div class="mb-3">
+                    <input id="p_brand" list="brandSuggestions" placeholder="Brand (e.g., Samsung)" class="w-full border rounded-xl px-4 py-3 text-sm bg-gray-50 focus:border-indigo-500 outline-none">
+                </div>
+                
+                <div class="mb-3 relative">
+                    <input id="p_name" oninput="handleNameInput(this.value)" autocomplete="off" placeholder="Product Name" class="w-full border rounded-xl px-4 py-3 text-sm bg-gray-50 focus:border-indigo-500 outline-none font-semibold">
+                    
+                    <div id="name_sug_box" class="hidden absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto divide-y divide-gray-100"></div>
+                    
+                    <p id="dupWarning" class="text-[11px] hidden mt-2 ml-1 font-bold px-2 py-1.5 rounded"></p>
+                </div>
+                
+                <div class="mb-3">
+                    <input id="p_price" type="number" placeholder="Price (₹)" class="w-full border rounded-xl px-4 py-3 text-sm bg-gray-50 focus:border-indigo-500 outline-none">
+                </div>`;
+            
+            db.f.forEach(f => { html += `<div class="mb-3"><input id="f_${f}" placeholder="${f}" class="w-full border rounded-xl px-4 py-3 text-sm bg-gray-50 focus:border-indigo-500 outline-none"></div>`; });
+            $('dynamicInputs').innerHTML = html;
+        }
+
+        // Drop out of edit mode if they change the text manually after selecting
+        function handleNameInput(val) {
+            isEditMode = false;
+            checkNameSuggestions(val);
+        }
+
+        // NAYA: Fill ALL data and enter "Edit Mode"
+        function selectProductSuggestion(name) {
+            isEditMode = true; // Activating Edit/Update Mode
+            $('p_name').value = name;
+            $('name_sug_box').classList.add('hidden');
+            
+            let existingItem = null;
+            db.s.forEach((_, idx) => addDist[idx] = 0); // Reset quantities
+            
+            // Collect quantities across all shops
+            db.s.forEach((shop, sIdx) => {
+                let found = shop.i.find(i => i.n === name);
+                if(found) {
+                    existingItem = found;
+                    addDist[sIdx] = found.q;
+                }
+            });
+            
+            renderShopAddList();
+
+            // Populate other fields
+            if(existingItem) {
+                $('p_brand').value = existingItem.b || '';
+                $('p_price').value = existingItem.p || '';
+                
+                db.f.forEach(f => {
+                    if($(`f_${f}`) && existingItem.ex) $(`f_${f}`).value = existingItem.ex[f] || '';
+                });
+                
+                if(existingItem.tg) {
+                    activeTags = [...existingItem.tg];
+                    renderAddTags();
+                }
+            }
+
+            // Show Edit Warning
+            let warn = $('dupWarning');
+            warn.innerHTML = `<i class="fas fa-edit mr-1"></i><b>Edit Mode Active:</b> Saving will OVERWRITE current stock & details.`;
+            warn.classList.remove('hidden', 'text-amber-600', 'bg-amber-50');
+            warn.classList.add('text-blue-600', 'bg-blue-50');
+            
+            $('saveBtn').innerText = "Update Data";
+            $('saveBtn').className = "w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm btn-active shadow-md shadow-blue-200 mt-2";
+        }
+
+        function checkNameSuggestions(val) {
+            let box = $('name_sug_box');
+            let warn = $('dupWarning');
+            let v = val.trim().toLowerCase();
+            
+            if(!v) {
+                box.classList.add('hidden');
+                warn.classList.add('hidden');
+                $('saveBtn').innerText = "Save Product";
+                $('saveBtn').className = "w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm btn-active shadow-md shadow-indigo-200";
+                return;
+            }
+
+            let matches = window.allProductNames.filter(n => n.toLowerCase().includes(v));
+            let exactMatch = window.allProductNames.find(n => n.toLowerCase() === v);
+            
+            if(!isEditMode) {
+                if(exactMatch) {
+                    warn.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i>Product exists! Adding will INCREASE stock. Click suggestion below to EDIT.`;
+                    warn.classList.remove('hidden', 'text-blue-600', 'bg-blue-50');
+                    warn.classList.add('text-amber-600', 'bg-amber-50');
+                    $('saveBtn').innerText = "Add Stock";
+                    $('saveBtn').className = "w-full bg-amber-500 text-white py-3 rounded-xl font-bold text-sm btn-active shadow-md shadow-amber-200 mt-2";
+                } else {
+                    warn.classList.add('hidden');
+                    $('saveBtn').innerText = "Save Product";
+                    $('saveBtn').className = "w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm btn-active shadow-md shadow-indigo-200 mt-2";
+                }
+            }
+
+            if(matches.length > 0) {
+                box.innerHTML = matches.map(m => `
+                    <div onclick="selectProductSuggestion('${m.replace(/'/g, "\\'")}')" class="px-4 py-3 text-sm text-gray-700 hover:bg-indigo-50 cursor-pointer flex items-center gap-2 border-b border-gray-50 last:border-0">
+                        <i class="fas fa-box text-indigo-300 text-xs"></i> <span class="font-semibold">${m}</span>
+                    </div>
+                `).join('');
+                box.classList.remove('hidden');
+            } else {
+                box.classList.add('hidden');
+            }
+        }
+
+        function renderAddTags() { $('p_tags_container').innerHTML = db.t.map(tag => `<div onclick="toggleAddTag('${tag}')" class="px-3 py-1 text-xs font-semibold rounded-lg border cursor-pointer transition-colors ${activeTags.includes(tag)?'tag-active':'bg-white text-gray-500'}">${tag}</div>`).join(''); }
+        function toggleAddTag(tag) { activeTags.includes(tag)? activeTags=activeTags.filter(t=>t!==tag) : activeTags.push(tag); renderAddTags(); }
+
+        // NAYA: Add / Update Logic
+        function addP() {
+            let name = $('p_name').value.trim();
+            let brand = $('p_brand').value.trim();
+            let price = $('p_price').value;
+            if(!name) return alert("Product Name required!");
+            
+            let extra = {}; 
+            db.f.forEach(f => { let v = $(`f_${f}`).value; if(v) extra[f]=v; });
+            
+            commitAction(isEditMode ? `Updated: ${name}` : `Added/Modified: ${name}`, () => {
+                db.s.forEach((shop, idx) => {
+                    let qty = addDist[idx];
+                    let exIdx = shop.i.findIndex(x => x.n === name);
+                    
+                    if(isEditMode) {
+                        // UPDATE (Overwrite) Mode
+                        if(qty > 0) {
+                            let item = { n: name, b: brand, q: qty, p: price, ex: extra, tg: activeTags };
+                            if(exIdx > -1) shop.i[exIdx] = item;
+                            else shop.i.push(item);
+                        } else {
+                            if(exIdx > -1) shop.i.splice(exIdx, 1); // Remove if qty set to 0
+                        }
+                    } else {
+                        // ADD Mode (Just increases stock if exists)
+                        if(qty > 0) {
+                            let item = { n: name, b: brand, q: qty, p: price, ex: extra, tg: activeTags };
+                            if(exIdx > -1) {
+                                shop.i[exIdx].q += qty;
+                                if(brand) shop.i[exIdx].b = brand;
+                                if(price) shop.i[exIdx].p = price;
+                                if(activeTags.length) shop.i[exIdx].tg = activeTags;
+                                if(Object.keys(extra).length) shop.i[exIdx].ex = extra;
+                            } else {
+                                shop.i.push(item);
+                            }
+                        }
+                    }
+                });
+            });
+            closeM('pM');
+            render();
+        }
+
+        function act(name) {
+            selProdName = name;
+            let item = null;
+            if(cur === 'all') { db.s.forEach(s => { let found = s.i.find(x => x.n === name); if(found) item = found; }); } 
+            else { selIdx = db.s[cur].i.findIndex(x => x.n === name); item = db.s[cur].i[selIdx]; }
+
+            $('actT').innerText = selProdName;
+            let det = '';
+            if(item && item.b) det += `<span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded-md text-[10px] font-bold border border-gray-200"><i class="fas fa-tag text-[8px] mr-1"></i>${item.b}</span>`;
+            if(item && item.p) det += `<span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-[10px] font-bold border border-blue-100">₹${item.p}</span>`;
+            if(item && item.tg) item.tg.forEach(t => det += `<span class="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md text-[10px] font-bold border border-emerald-100 ml-1">${t}</span>`);
+            $('actDetails').innerHTML = det;
+            
+            renderShopEditors();
+            openM('actM');
+        }
+
+        function renderShopEditors() {
+            $('shopEditList').innerHTML = db.s.map((shop, sIdx) => {
+                let p = shop.i.find(x => x.n === selProdName);
+                let q = p ? p.q : 0;
+                return `
+                <div class="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                    <span class="text-xs font-bold text-gray-600">${shop.n}</span>
+                    <div class="flex items-center gap-3">
+                        <button onclick="quickMod(${sIdx},-1)" class="w-10 h-10 bg-white border border-gray-200 rounded-lg shadow-sm text-lg font-bold text-gray-600 btn-active">-</button>
+                        <span class="text-base font-black w-8 text-center text-indigo-600">${q}</span>
+                        <button onclick="quickMod(${sIdx},1)" class="w-10 h-10 bg-indigo-600 text-white rounded-lg shadow-md text-lg font-bold btn-active">+</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function quickMod(sIdx, val) {
+            commitAction(`Updated Stock: ${selProdName}`, () => {
+                let shop = db.s[sIdx];
+                let pIdx = shop.i.findIndex(x => x.n === selProdName);
+                if(pIdx > -1) {
+                    shop.i[pIdx].q = Math.max(0, shop.i[pIdx].q + val);
+                } else if(val > 0) {
+                    let existing = null; db.s.forEach(s => { let f = s.i.find(x => x.n === selProdName); if(f) existing = f; });
+                    shop.i.push({ n: selProdName, b: existing?.b||"", q: 1, p: existing?.p||"", ex: existing?.ex||{}, tg: existing?.tg||[] });
+                }
+            });
+            renderShopEditors();
+        }
+
+        function openSell() { if(cur==='all') return alert("Select a shop first to sell!"); $('btns').classList.add('hidden'); $('sellZone').classList.remove('hidden'); $('sellQty').value = 1; }
+        function stepSell(v) { let n = parseInt($('sellQty').value) + v; if(n > 0 && n <= db.s[cur].i[selIdx].q) $('sellQty').value = n; }
+        function confSell() { 
+            let qty = parseInt($('sellQty').value);
+            commitAction(`Sold ${qty}x ${selProdName}`, () => { db.s[cur].i[selIdx].q -= qty; });
+            closeM('actM'); 
+        }
+
+        function showT() { if(cur==='all') return alert("Select a shop first!"); if(db.s.length < 2) return alert("Need 2 shops!"); $('btns').classList.add('hidden'); $('tZone').classList.remove('hidden'); renderPills(); }
+        function renderPills() { $('pillContainer').innerHTML = db.s.map((s,i) => i!=cur ? `<div onclick="togglePill(${i})" class="border px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${tShops[i]!==undefined?'pill-active':'bg-white'}">${s.n}</div>` : '').join(''); }
+        function togglePill(i) { tShops[i]!==undefined ? delete tShops[i] : tShops[i]=1; renderPills(); updateInputs(); }
+        function updateInputs() {
+            $('qtyInputs').innerHTML = Object.keys(tShops).map(i => `
+                <div class="flex items-center justify-between bg-white px-3 py-2 rounded-lg border"><span class="text-xs font-bold">${db.s[i].n}</span>
+                <input type="number" value="${tShops[i]}" oninput="tShops[${i}]=parseInt(this.value)||0" class="w-10 text-center font-bold text-indigo-600"></div>`).join('');
+        }
+        function confT() {
+            let total = 0; for(let k in tShops) total += parseInt(tShops[k]);
+            let itm = db.s[cur].i[selIdx];
+            if(total > itm.q) return alert("Low stock!");
+            commitAction(`Transferred ${selProdName}`, () => {
+                Object.keys(tShops).forEach(i => { 
+                    let q = tShops[i]; let ex = db.s[i].i.find(x => x.n === itm.n); 
+                    if(ex) ex.q += q; else db.s[i].i.push({ ...itm, q }); itm.q -= q; 
+                });
+            });
+            closeM('actM');
+        }
+
+        function delP() { 
+            if(confirm('Delete?')) { 
+                commitAction(`Deleted ${selProdName}`, () => {
+                    if(cur==='all'){ db.s.forEach(s=> {let idx=s.i.findIndex(x=>x.n===selProdName); if(idx>-1) s.i.splice(idx,1);}); } 
+                    else { db.s[cur].i.splice(selIdx,1); } 
+                });
+                closeM('actM'); 
+            }
+        }
+
+        // ---------- UI RENDERING ----------
+        function renderStock() {
+            let term = $('search').value.toLowerCase();
+            let html = "";
+            
+            if(cur === 'all') {
+                let grouped = {};
+                db.s.forEach(shop => {
+                    shop.i.forEach(item => {
+                        if(selBrand && item.b !== selBrand) return;
+                        if(item.n.toLowerCase().includes(term) || (item.b && item.b.toLowerCase().includes(term))) {
+                            if(!grouped[item.n]) grouped[item.n] = { ...item, total: 0, shops: [] };
+                            grouped[item.n].total += item.q;
+                            grouped[item.n].shops.push({ n: shop.n, q: item.q });
+                        }
+                    });
+                });
+                html = Object.values(grouped).map(x => `
+                <div onclick="act(this.dataset.name)" data-name="${x.n.replace(/"/g, '&quot;')}" class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center btn-active cursor-pointer hover:shadow-md transition-shadow">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black text-lg">${x.n[0].toUpperCase()}</div>
+                        <div><h3 class="font-bold text-gray-800 text-sm leading-tight">${x.n}</h3>
+                        <p class="text-[10px] text-gray-500 font-medium mt-0.5">${x.b ? `<span class="text-indigo-500 font-bold">${x.b}</span> • ` : ''}${x.p ? '₹'+x.p : ''}</p>
+                        <div class="flex flex-wrap gap-1 mt-1.5">${x.shops.map(s=>`<span class="text-[9px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded-md">${s.n}: ${s.q}</span>`).join('')}</div></div>
+                    </div>
+                    <div class="text-right flex flex-col items-end pl-2">
+                        <span class="text-2xl font-black text-indigo-600 leading-none">${x.total}</span>
+                        <span class="text-[8px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Total</span>
+                    </div>
+                </div>`).join('');
+            } else {
+                let items = (db.s[cur]?.i || []).filter(item => {
+                    if(selBrand && item.b !== selBrand) return false;
+                    return item.n.toLowerCase().includes(term) || (item.b && item.b.toLowerCase().includes(term));
+                });
+                
+                html = items.map((x, i) => `
+                <div onclick="act(this.dataset.name)" data-name="${x.n.replace(/"/g, '&quot;')}" class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center btn-active cursor-pointer hover:shadow-md transition-shadow">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black text-lg">${x.n[0].toUpperCase()}</div>
+                        <div><h3 class="font-bold text-gray-800 text-sm">${x.n}</h3>
+                        <p class="text-[10px] text-gray-400 font-medium mt-0.5">${x.b ? `<span class="text-indigo-500 font-bold">${x.b}</span> • ` : ''}${x.p ? '₹'+x.p : ''}</p></div>
+                    </div>
+                    <span class="text-2xl font-black ${x.q<5?'text-red-500':'text-gray-800'}">${x.q}</span>
+                </div>`).join('');
+            }
+            $('app').innerHTML = html || `<div class="text-center py-16 text-gray-400"><i class="fas fa-box-open text-5xl mb-3 text-gray-200"></i><br><span class="text-sm font-medium">No products found</span></div>`;
+        }
+
+        function render() {
+            let totalAll = 0;
+            let shopTotals = [];
+            let brandCounts = {}; 
+
+            db.s.forEach((s, i) => {
+                let sTotal = 0;
+                s.i.forEach(item => { sTotal += item.q; totalAll += item.q; });
+                shopTotals[i] = sTotal;
+            });
+
+            if (cur === 'all') {
+                db.s.forEach(s => { s.i.forEach(item => { if(item.b && item.q > 0) { let bName = item.b.trim(); brandCounts[bName] = (brandCounts[bName] || 0) + item.q; }}); });
+            } else {
+                if (db.s[cur]) { db.s[cur].i.forEach(item => { if(item.b && item.q > 0) { let bName = item.b.trim(); brandCounts[bName] = (brandCounts[bName] || 0) + item.q; }}); }
+            }
+
+            let tabsHtml = `<button onclick="cur='all';selBrand='';render()" class="px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all border ${cur==='all'?'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200':'bg-white text-gray-600 border-gray-200'}">All <span class="${cur==='all'?'bg-indigo-500 text-white':'bg-gray-100 text-gray-500'} px-1.5 py-0.5 rounded-md text-[10px]">${totalAll}</span></button>`;
+            tabsHtml += db.s.map((s,i) => `<button onclick="cur=${i};selBrand='';render()" class="px-4 py-2 rounded-xl flex items-center gap-2 whitespace-nowrap text-xs font-bold transition-all border ${cur===i?'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200':'bg-white text-gray-600 border-gray-200'}">${s.n} <span class="${cur===i?'bg-indigo-500 text-white':'bg-gray-100 text-gray-500'} px-1.5 py-0.5 rounded-md text-[10px]">${shopTotals[i]}</span></button>`).join('');
+            $('tabs').innerHTML = tabsHtml;
+
+            let bKeys = Object.keys(brandCounts).sort();
+            if(bKeys.length > 0) {
+                let displayTotalForView = (cur === 'all') ? totalAll : shopTotals[cur];
+                let bHtml = `<button onclick="selBrand='';render()" class="px-4 py-1.5 rounded-full whitespace-nowrap text-[10px] font-bold border transition-colors flex items-center gap-1.5 ${selBrand===''?'bg-slate-800 text-white border-slate-800':'bg-white text-gray-500 border-gray-200'}">All Brands <span class="${selBrand===''?'bg-slate-600 text-white':'bg-gray-100 text-gray-400'} px-1.5 py-0.5 rounded-full text-[9px]">${displayTotalForView}</span></button>`;
+                bHtml += bKeys.map(b => `<button onclick="selBrand='${b.replace(/'/g,"\\'")}';render()" class="px-4 py-1.5 rounded-full whitespace-nowrap text-[10px] font-bold border transition-colors flex items-center gap-1.5 ${selBrand===b?'bg-slate-800 text-white border-slate-800':'bg-white text-gray-500 border-gray-200'}">${b} <span class="${selBrand===b?'bg-slate-600 text-white':'bg-gray-100 text-gray-400'} px-1.5 py-0.5 rounded-full text-[9px]">${brandCounts[b]}</span></button>`).join('');
+                $('brandTabs').innerHTML = bHtml;
+                $('brandTabs').classList.remove('hidden');
+            } else {
+                $('brandTabs').innerHTML = '';
+                $('brandTabs').classList.add('hidden');
+            }
+            renderStock();
+        }
+        
+        render();
+    </script>
+</body>
+</html>
