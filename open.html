@@ -1,3 +1,95 @@
-<a href="luckyapp://open" style="padding: 10px 20px; background-color: #007BFF; color: white; text-decoration: none; border-radius: 5px;">
-    Launch App
-</a>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lucky App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+
+    body {
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      text-align: center;
+      background: rgba(255,255,255,0.05);
+      padding: 30px;
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      width: 90%;
+      max-width: 400px;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      letter-spacing: 2px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      opacity: 0.8;
+      margin-bottom: 25px;
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: 0.3s;
+    }
+
+    .launch {
+      background: #00c6ff;
+      color: #000;
+    }
+
+    .download {
+      background: #ff416c;
+      color: #fff;
+    }
+
+    .btn:hover {
+      transform: scale(1.05);
+      opacity: 0.9;
+    }
+
+    .footer {
+      margin-top: 20px;
+      font-size: 12px;
+      opacity: 0.6;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="logo">LUCKY APP</div>
+    <div class="subtitle">Fast • Secure • Smart</div>
+
+    <!-- Launch App Button -->
+    <a href="luckyapp://open" class="btn launch">🚀 Launch App</a>
+
+    <!-- Download Button -->
+    <a href="https://github.com/gr8trick/Lucky-stock/raw/c0dc2073e3987906ef60f421eb8df7fc46442deb/Lucky%20User%20Running.apk" class="btn download" download>
+      ⬇ Download App
+    </a>
+
+    <div class="footer">© 2026 Lucky App</div>
+  </div>
+
+</body>
+</html>
